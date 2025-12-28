@@ -5,7 +5,7 @@ bl_info = {
     "version": (0, 4, 0),
     "blender": (4, 0, 0),
     "location": "3D View > Smart Bones",
-    "warning": "Requires FILM/TensorFlow or ToonCrafter/Torch for AI tweening; use install operator to auto-setup dependencies. Assumes ffmpeg installed for frame extraction.",
+    "warning": "Requires FILM/TensorFlow or ToonCrafter/Torch for AI tweening; use install operator to auto-setup dependencies and paths. Assumes ffmpeg installed for frame extraction.",
     "wiki_url": "https://github.com/sketchy-squirrel/smart-bones",
     "category": "Rigging"
 }
@@ -443,34 +443,36 @@ class POSE_OT_InstallAIDeps(bpy.types.Operator):
     bl_label = "Install AI Deps"
 
     def execute(self, context):
-        def install():
-            python_exe = sys.executable
-            addon_dir = os.path.dirname(__file__)
-            libs_dir = os.path.join(addon_dir, "libs")
-            os.makedirs(libs_dir, exist_ok=True)
+        tool = context.scene.smart_bone_tool
+        addon_dir = os.path.dirname(__file__)
+        libs_dir = os.path.join(addon_dir, "libs")
+        os.makedirs(libs_dir, exist_ok=True)
 
-            # Ensure pip
-            subprocess.call([python_exe, '-m', 'ensurepip', '--upgrade'])
-            subprocess.call([python_exe, '-m', 'pip', 'install', '--upgrade', 'pip'])
+        # Ensure pip
+        subprocess.call([sys.executable, '-m', 'ensurepip', '--upgrade'])
+        subprocess.call([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'])
 
-            # Common packages
-            packages = ['tensorflow', 'torch', 'diffusers', 'transformers', 'accelerate', 'mediapy', 'numpy', 'scikit-image', 'pyyaml', 'natsort']
-            subprocess.call([python_exe, '-m', 'pip', 'install'] + packages)
+        # Common packages
+        packages = ['tensorflow', 'torch', 'diffusers', 'transformers', 'accelerate', 'mediapy', 'numpy', 'scikit-image', 'pyyaml', 'natsort']
+        subprocess.call([sys.executable, '-m', 'pip', 'install'] + packages)
 
-            # Clone and install FILM
-            film_dir = os.path.join(libs_dir, "frame-interpolation")
-            if not os.path.exists(film_dir):
-                subprocess.call(['git', 'clone', 'https://github.com/google-research/frame-interpolation', film_dir])
-            subprocess.call([python_exe, '-m', 'pip', 'install', '-r', os.path.join(film_dir, 'requirements.txt')])
+        # Clone and install FILM
+        film_dir = os.path.join(libs_dir, "frame-interpolation")
+        if not os.path.exists(film_dir):
+            subprocess.call(['git', 'clone', 'https://github.com/google-research/frame-interpolation', film_dir])
+        subprocess.call([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(film_dir, 'requirements.txt')])
 
-            # Clone and install ToonCrafter
-            tooncrafter_dir = os.path.join(libs_dir, "ToonCrafter")
-            if not os.path.exists(tooncrafter_dir):
-                subprocess.call(['git', 'clone', 'https://github.com/Doubiiu/ToonCrafter', tooncrafter_dir])
-            subprocess.call([python_exe, '-m', 'pip', 'install', '-r', os.path.join(tooncrafter_dir, 'requirements.txt')])
+        # Clone and install ToonCrafter
+        tooncrafter_dir = os.path.join(libs_dir, "ToonCrafter")
+        if not os.path.exists(tooncrafter_dir):
+            subprocess.call(['git', 'clone', 'https://github.com/Doubiiu/ToonCrafter', tooncrafter_dir])
+        subprocess.call([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(tooncrafter_dir, 'requirements.txt')])
 
-        threading.Thread(target=install).start()
-        self.report({'INFO'}, "Installing AI dependencies in background... This may take a while.")
+        # Set paths
+        tool.film_path = film_dir
+        tool.tooncrafter_path = tooncrafter_dir
+
+        self.report({'INFO'}, "AI dependencies installed. Please set model_path to the model file.")
         return {'FINISHED'}
 
 # New Operators
@@ -648,7 +650,15 @@ class POSE_OT_ApplyPreset(bpy.types.Operator):
             bpy.ops.myops.add_bendy_part()
         elif preset == 'FACE_EXPRESSIONS':
             bpy.ops.myops.add_expression_assets()
-        # Add more for other presets, e.g., full body combines
+        elif preset == 'FULL_BODY':
+            # Automate full body rig: add bendy for arms, legs, expressions, depth
+            bpy.ops.myops.add_bendy_part()  # Assume for arm
+            tool.expression_type = 'EYES'
+            bpy.ops.myops.add_expression_assets()
+            tool.expression_type = 'MOUTH'
+            bpy.ops.myops.add_expression_assets()
+            tool.use_depth = True
+            bpy.ops.myops.add_depth()
 
         return {'FINISHED'}
 
@@ -681,6 +691,7 @@ class POSE_OT_EasyColour(bpy.types.Operator):
 
         # Fill selected strokes
         bpy.ops.object.mode_set(mode='EDIT_GPENCIL')
+        bpy.ops.gpencil.select_all(action='SELECT')
         bpy.ops.gpencil.fill()
 
         # Apply color from palette (use first for simplicity)
@@ -697,6 +708,14 @@ class POSE_OT_EasyColour(bpy.types.Operator):
             bpy.ops.gpencil.duplicate()
             bpy.ops.gpencil.transform_translate(value=(0.01, 0.01, 0))
 
+        # Auto-layering
+        if tool.group_layers:
+            if tool.linked_group_name not in gp.layer_groups:
+                group = gp.layer_groups.new(name=tool.linked_group_name)
+            else:
+                group = gp.layer_groups[tool.linked_group_name]
+            color_layer.layer_group = group
+
         bpy.ops.object.mode_set(mode='OBJECT')
 
         return {'FINISHED'}
@@ -709,11 +728,14 @@ class POSE_OT_EditGroup(bpy.types.Operator):
     def execute(self, context):
         tool = context.scene.smart_bone_tool
         if tool.group_layers:
-            # Simulate Smart Object: Unlock for edit
+            # Edit Smart Object like: Unlock group for edit
             obj = context.object
-            for layer in obj.data.layers:
-                if tool.linked_group_name in layer.info:
-                    layer.lock = False
+            if tool.linked_group_name in obj.data.layer_groups:
+                group = obj.data.layer_groups[tool.linked_group_name]
+                # Perhaps select layers in group or something
+                for layer in obj.data.layers:
+                    if layer.layer_group == group:
+                        layer.lock = False
             bpy.ops.object.mode_set(mode='EDIT_GPENCIL')
 
         return {'FINISHED'}
@@ -1070,6 +1092,7 @@ def register():
     
     bpy.types.Scene.smart_bone_tool = bpy.props.PointerProperty(type=SmartBoneProperties)
     bpy.types.GPENCIL_MT_interpolate.append(interpolate_menu_func)
+    bpy.types.DOPESHEET_MT_key.append(interpolate_menu_func)
     
 def unregister():
     for blender_class in blender_classes:
@@ -1077,6 +1100,7 @@ def unregister():
 
     del bpy.types.Scene.smart_bone_tool
     bpy.types.GPENCIL_MT_interpolate.remove(interpolate_menu_func)
+    bpy.types.DOPESHEET_MT_key.remove(interpolate_menu_func)
 
 
 if __name__ == "__main__":
