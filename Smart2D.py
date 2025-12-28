@@ -269,6 +269,24 @@ class SmartBoneProperties(bpy.types.PropertyGroup):
         min = 1
     )
 
+    # GP Interpolate properties
+    gp_interpolate_type : bpy.props.EnumProperty(
+        name = "Type",
+        description = "Interpolation type",
+        items = [
+            ('LINEAR', 'Linear', ''),
+            ('AI', 'AI Tweening', '')
+        ],
+        default = 'LINEAR'
+    )
+
+    gp_interpolate_steps : bpy.props.IntProperty(
+        name = "Steps",
+        description = "Number of steps",
+        default = 1,
+        min = 1
+    )
+
 #---------------------------------------------------------------------
 #    Operators
 #---------------------------------------------------------------------
@@ -491,7 +509,18 @@ class POSE_OT_InstallAIDeps(bpy.types.Operator):
         self.report({'INFO'}, "AI dependencies installed successfully. Please set model_path to the model file.")
         return {'FINISHED'}
 
-# New Operators
+class POSE_OT_GPInterpolate(bpy.types.Operator):
+    """Interpolate Grease Pencil frames with AI option"""
+    bl_idname = "myops.gp_interpolate"
+    bl_label = "Interpolate"
+
+    def execute(self, context):
+        tool = context.scene.smart_bone_tool
+        if tool.gp_interpolate_type == 'AI':
+            bpy.ops.myops.ai_tween()
+        else:
+            bpy.ops.gpencil.interpolate_sequence(type=tool.gp_interpolate_type, steps=tool.gp_interpolate_steps)
+        return {'FINISHED'}
 
 class POSE_OT_AddBendyPart(bpy.types.Operator):
     """Add lattice-based bendy deformation to selected GP part"""
@@ -1061,6 +1090,34 @@ class POSE_PT_AIPanel(bpy.types.Panel):
         layout.prop(tool, "ai_times_to_interpolate")
         layout.operator("myops.ai_tween")
 
+# Custom GP Interpolate Panel
+class POSE_PT_GPInterpolatePanel(bpy.types.Panel):
+    bl_label = "Grease Pencil Interpolate"
+    bl_idname = "POSE_PT_GPInterpolatePanel"
+    bl_space_type = "DOPESHEET_EDITOR"
+    bl_region_type = "UI"
+    bl_category = "Animation"
+
+    def draw(self, context):
+        layout = self.layout
+        tool = context.scene.smart_bone_tool
+
+        layout.prop(tool, "interpolator_type")
+        if tool.interpolator_type == 'FILM':
+            layout.prop(tool, "film_path")
+        elif tool.interpolator_type == 'TOONCRAFTER':
+            layout.prop(tool, "tooncrafter_path")
+            layout.prop(tool, "ai_prompt")
+        layout.prop(tool, "model_path")
+        layout.prop(tool, "ai_times_to_interpolate")
+
+        # Custom interpolate with AI type
+        box = layout.box()
+        box.label(text="Interpolate Sequence")
+        box.prop(tool, "gp_interpolate_type")
+        box.prop(tool, "gp_interpolate_steps")
+        box.operator("myops.gp_interpolate")
+
 # Menu func for interpolate menu
 def interpolate_menu_func(self, context):
     self.layout.separator()
@@ -1084,6 +1141,7 @@ blender_classes = [
     POSE_OT_EditGroup,
     POSE_OT_AITween,
     POSE_OT_InstallAIDeps,
+    POSE_OT_GPInterpolate,
     POSE_PT_SmartBonePanel,
     POSE_PT_BendyPanel,
     POSE_PT_ExpressionsPanel,
@@ -1091,7 +1149,8 @@ blender_classes = [
     POSE_PT_AutomationPanel,
     POSE_PT_ColouringPanel,
     POSE_PT_LayeringPanel,
-    POSE_PT_AIPanel
+    POSE_PT_AIPanel,
+    POSE_PT_GPInterpolatePanel
 ]
 
 def register():
