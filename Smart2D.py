@@ -269,24 +269,6 @@ class SmartBoneProperties(bpy.types.PropertyGroup):
         min = 1
     )
 
-    # GP Interpolate properties
-    gp_interpolate_type : bpy.props.EnumProperty(
-        name = "Type",
-        description = "Interpolation type",
-        items = [
-            ('LINEAR', 'Linear', ''),
-            ('AI', 'AI Tweening', '')
-        ],
-        default = 'LINEAR'
-    )
-
-    gp_interpolate_steps : bpy.props.IntProperty(
-        name = "Steps",
-        description = "Number of steps",
-        default = 1,
-        min = 1
-    )
-
 #---------------------------------------------------------------------
 #    Operators
 #---------------------------------------------------------------------
@@ -510,16 +492,72 @@ class POSE_OT_InstallAIDeps(bpy.types.Operator):
         return {'FINISHED'}
 
 class POSE_OT_GPInterpolate(bpy.types.Operator):
-    """Interpolate Grease Pencil frames with AI option"""
-    bl_idname = "myops.gp_interpolate"
+    """Interpolate Grease Pencil frames with AI option (overrides built-in)"""
+    bl_idname = "gpencil.interpolate_sequence"
     bl_label = "Interpolate"
 
+    type : bpy.props.EnumProperty(
+        name = "Type",
+        description = "Interpolation type",
+        items = [
+            ('LINEAR', 'Linear', ''),
+            ('BEZIER', 'Bezier', ''),
+            ('SINE', 'Sinusoidal', ''),
+            ('QUAD', 'Quadratic', ''),
+            ('CUBIC', 'Cubic', ''),
+            ('QUART', 'Quartic', ''),
+            ('QUINT', 'Quintic', ''),
+            ('AI', 'AI Tweening', '')
+        ],
+        default = 'LINEAR'
+    )
+
+    steps : bpy.props.IntProperty(
+        name = "Steps",
+        description = "Number of steps",
+        default = 1,
+        min = 1
+    )
+
     def execute(self, context):
-        tool = context.scene.smart_bone_tool
-        if tool.gp_interpolate_type == 'AI':
+        if self.type == 'AI':
             bpy.ops.myops.ai_tween()
         else:
-            bpy.ops.gpencil.interpolate_sequence(type=tool.gp_interpolate_type, steps=tool.gp_interpolate_steps)
+            # Call original logic (approximated)
+            obj = context.object
+            if obj and obj.type == 'GPENCIL':
+                gp = obj.data
+                layer = gp.layers.active
+                if layer:
+                    frames = layer.frames
+                    current_frame = context.scene.frame_current
+                    next_frame = current_frame + 1
+                    current_f = None
+                    next_f = None
+                    for f in frames:
+                        if f.frame_number == current_frame:
+                            current_f = f
+                        elif f.frame_number == next_frame:
+                            next_f = f
+                    if current_f and next_f:
+                        for step in range(1, self.steps + 1):
+                            t = step / (self.steps + 1)
+                            new_frame_num = current_frame + step
+                            new_frame = layer.frames.new(new_frame_num)
+                            # Interpolate strokes (simplified)
+                            for i, stroke in enumerate(current_f.strokes):
+                                if i < len(next_f.strokes):
+                                    new_stroke = new_frame.strokes.new()
+                                    new_stroke.points.add(len(stroke.points))
+                                    for j, point in enumerate(stroke.points):
+                                        if j < len(next_f.strokes[i].points):
+                                            p1 = point.co
+                                            p2 = next_f.strokes[i].points[j].co
+                                            new_point = new_stroke.points[j]
+                                            new_point.co = p1 + (p2 - p1) * t
+                                            # Interpolate pressure, etc.
+                                            new_point.pressure = point.pressure + (next_f.strokes[i].points[j].pressure - point.pressure) * t
+                                            new_point.strength = point.strength + (next_f.strokes[i].points[j].strength - point.strength) * t
         return {'FINISHED'}
 
 class POSE_OT_AddBendyPart(bpy.types.Operator):
@@ -1090,34 +1128,6 @@ class POSE_PT_AIPanel(bpy.types.Panel):
         layout.prop(tool, "ai_times_to_interpolate")
         layout.operator("myops.ai_tween")
 
-# Custom GP Interpolate Panel
-class POSE_PT_GPInterpolatePanel(bpy.types.Panel):
-    bl_label = "Grease Pencil Interpolate"
-    bl_idname = "POSE_PT_GPInterpolatePanel"
-    bl_space_type = "DOPESHEET_EDITOR"
-    bl_region_type = "UI"
-    bl_category = "Animation"
-
-    def draw(self, context):
-        layout = self.layout
-        tool = context.scene.smart_bone_tool
-
-        layout.prop(tool, "interpolator_type")
-        if tool.interpolator_type == 'FILM':
-            layout.prop(tool, "film_path")
-        elif tool.interpolator_type == 'TOONCRAFTER':
-            layout.prop(tool, "tooncrafter_path")
-            layout.prop(tool, "ai_prompt")
-        layout.prop(tool, "model_path")
-        layout.prop(tool, "ai_times_to_interpolate")
-
-        # Custom interpolate with AI type
-        box = layout.box()
-        box.label(text="Interpolate Sequence")
-        box.prop(tool, "gp_interpolate_type")
-        box.prop(tool, "gp_interpolate_steps")
-        box.operator("myops.gp_interpolate")
-
 # Menu func for interpolate menu
 def interpolate_menu_func(self, context):
     self.layout.separator()
@@ -1149,8 +1159,7 @@ blender_classes = [
     POSE_PT_AutomationPanel,
     POSE_PT_ColouringPanel,
     POSE_PT_LayeringPanel,
-    POSE_PT_AIPanel,
-    POSE_PT_GPInterpolatePanel
+    POSE_PT_AIPanel
 ]
 
 def register():
