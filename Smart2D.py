@@ -448,31 +448,47 @@ class POSE_OT_InstallAIDeps(bpy.types.Operator):
         libs_dir = os.path.join(addon_dir, "libs")
         os.makedirs(libs_dir, exist_ok=True)
 
-        # Ensure pip
-        subprocess.call([sys.executable, '-m', 'ensurepip', '--upgrade'])
-        subprocess.call([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'])
+        try:
+            # Ensure pip
+            subprocess.call([sys.executable, '-m', 'ensurepip', '--upgrade'], check=True)
+            subprocess.call([sys.executable, '-m', 'pip', 'install', '--upgrade', 'pip'], check=True)
+        except subprocess.CalledProcessError as e:
+            self.report({'ERROR'}, f"Pip setup failed: {e}")
+            return {'CANCELLED'}
 
-        # Common packages
-        packages = ['tensorflow', 'torch', 'diffusers', 'transformers', 'accelerate', 'mediapy', 'numpy', 'scikit-image', 'pyyaml', 'natsort']
-        subprocess.call([sys.executable, '-m', 'pip', 'install'] + packages)
+        try:
+            # Common packages
+            packages = ['tensorflow', 'torch', 'diffusers', 'transformers', 'accelerate', 'mediapy', 'numpy', 'scikit-image', 'pyyaml', 'natsort']
+            subprocess.call([sys.executable, '-m', 'pip', 'install'] + packages, check=True)
+        except subprocess.CalledProcessError as e:
+            self.report({'ERROR'}, f"Package install failed: {e}")
+            return {'CANCELLED'}
 
-        # Clone and install FILM
-        film_dir = os.path.join(libs_dir, "frame-interpolation")
-        if not os.path.exists(film_dir):
-            subprocess.call(['git', 'clone', 'https://github.com/google-research/frame-interpolation', film_dir])
-        subprocess.call([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(film_dir, 'requirements.txt')])
+        try:
+            # Clone and install FILM
+            film_dir = os.path.join(libs_dir, "frame-interpolation")
+            if not os.path.exists(film_dir):
+                subprocess.call(['git', 'clone', 'https://github.com/google-research/frame-interpolation', film_dir], check=True)
+            subprocess.call([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(film_dir, 'requirements.txt')], check=True)
+        except subprocess.CalledProcessError as e:
+            self.report({'ERROR'}, f"FILM install failed: {e}")
+            return {'CANCELLED'}
 
-        # Clone and install ToonCrafter
-        tooncrafter_dir = os.path.join(libs_dir, "ToonCrafter")
-        if not os.path.exists(tooncrafter_dir):
-            subprocess.call(['git', 'clone', 'https://github.com/Doubiiu/ToonCrafter', tooncrafter_dir])
-        subprocess.call([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(tooncrafter_dir, 'requirements.txt')])
+        try:
+            # Clone and install ToonCrafter
+            tooncrafter_dir = os.path.join(libs_dir, "ToonCrafter")
+            if not os.path.exists(tooncrafter_dir):
+                subprocess.call(['git', 'clone', 'https://github.com/Doubiiu/ToonCrafter', tooncrafter_dir], check=True)
+            subprocess.call([sys.executable, '-m', 'pip', 'install', '-r', os.path.join(tooncrafter_dir, 'requirements.txt')], check=True)
+        except subprocess.CalledProcessError as e:
+            self.report({'ERROR'}, f"ToonCrafter install failed: {e}")
+            return {'CANCELLED'}
 
         # Set paths
         tool.film_path = film_dir
         tool.tooncrafter_path = tooncrafter_dir
 
-        self.report({'INFO'}, "AI dependencies installed. Please set model_path to the model file.")
+        self.report({'INFO'}, "AI dependencies installed successfully. Please set model_path to the model file.")
         return {'FINISHED'}
 
 # New Operators
@@ -855,13 +871,12 @@ seed: 42
 #    Panels
 #---------------------------------------------------------------------
 
-# Original Panel
 class POSE_PT_SmartBonePanel(bpy.types.Panel):
     bl_label = "Smart Bone Panel"
     bl_idname = "POSE_PT_SmartBonePanel"
-    bl_space_type = "VIEW_3D"   
+    bl_space_type = "DOPESHEET_EDITOR"   
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
+    bl_category = "Animation"
     #bl_context = "posemode"   
 
     def draw(self, context):
@@ -940,10 +955,9 @@ class POSE_PT_SmartBonePanel(bpy.types.Panel):
 class POSE_PT_BendyPanel(bpy.types.Panel):
     bl_label = "Bendy Body Parts"
     bl_idname = "POSE_PT_BendyPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
@@ -956,10 +970,9 @@ class POSE_PT_BendyPanel(bpy.types.Panel):
 class POSE_PT_ExpressionsPanel(bpy.types.Panel):
     bl_label = "Better Expressions"
     bl_idname = "POSE_PT_ExpressionsPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
@@ -972,10 +985,9 @@ class POSE_PT_ExpressionsPanel(bpy.types.Panel):
 class POSE_PT_DepthPanel(bpy.types.Panel):
     bl_label = "Some Depth"
     bl_idname = "POSE_PT_DepthPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
@@ -988,10 +1000,9 @@ class POSE_PT_DepthPanel(bpy.types.Panel):
 class POSE_PT_AutomationPanel(bpy.types.Panel):
     bl_label = "Automation"
     bl_idname = "POSE_PT_AutomationPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
@@ -1002,10 +1013,9 @@ class POSE_PT_AutomationPanel(bpy.types.Panel):
 class POSE_PT_ColouringPanel(bpy.types.Panel):
     bl_label = "Easier Colouring"
     bl_idname = "POSE_PT_ColouringPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
@@ -1019,10 +1029,9 @@ class POSE_PT_ColouringPanel(bpy.types.Panel):
 class POSE_PT_LayeringPanel(bpy.types.Panel):
     bl_label = "Auto-layering"
     bl_idname = "POSE_PT_LayeringPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
@@ -1034,10 +1043,9 @@ class POSE_PT_LayeringPanel(bpy.types.Panel):
 class POSE_PT_AIPanel(bpy.types.Panel):
     bl_label = "AI Tweening (Experimental)"
     bl_idname = "POSE_PT_AIPanel"
-    bl_space_type = "VIEW_3D"
+    bl_space_type = "DOPESHEET_EDITOR"
     bl_region_type = "UI"
-    bl_category = "Smart Bones"
-    bl_parent_id = "POSE_PT_SmartBonePanel"
+    bl_category = "Animation"
 
     def draw(self, context):
         layout = self.layout
