@@ -1091,16 +1091,28 @@ def register():
         bpy.utils.register_class(blender_class)
     
     bpy.types.Scene.smart_bone_tool = bpy.props.PointerProperty(type=SmartBoneProperties)
-    bpy.types.DOPESHEET_MT_gpencil_frame.append(interpolate_menu_func)
-    bpy.types.DOPESHEET_MT_key.append(interpolate_menu_func)
+    try:
+        bpy.types.DOPESHEET_MT_gpencil_frame.append(interpolate_menu_func)
+    except AttributeError:
+        pass
+    try:
+        bpy.types.DOPESHEET_MT_key.append(interpolate_menu_func)
+    except AttributeError:
+        pass
     
 def unregister():
     for blender_class in blender_classes:
         bpy.utils.unregister_class(blender_class)
 
     del bpy.types.Scene.smart_bone_tool
-    bpy.types.DOPESHEET_MT_gpencil_frame.remove(interpolate_menu_func)
-    bpy.types.DOPESHEET_MT_key.remove(interpolate_menu_func)
+    try:
+        bpy.types.DOPESHEET_MT_gpencil_frame.remove(interpolate_menu_func)
+    except AttributeError:
+        pass
+    try:
+        bpy.types.DOPESHEET_MT_key.remove(interpolate_menu_func)
+    except AttributeError:
+        pass
 
 
 if __name__ == "__main__":
