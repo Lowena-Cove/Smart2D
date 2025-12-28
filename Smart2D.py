@@ -1091,7 +1091,7 @@ def register():
         bpy.utils.register_class(blender_class)
     
     bpy.types.Scene.smart_bone_tool = bpy.props.PointerProperty(type=SmartBoneProperties)
-    bpy.types.GPENCIL_MT_interpolate.append(interpolate_menu_func)
+    bpy.types.DOPESHEET_MT_gpencil_frame.append(interpolate_menu_func)
     bpy.types.DOPESHEET_MT_key.append(interpolate_menu_func)
     
 def unregister():
@@ -1099,7 +1099,7 @@ def unregister():
         bpy.utils.unregister_class(blender_class)
 
     del bpy.types.Scene.smart_bone_tool
-    bpy.types.GPENCIL_MT_interpolate.remove(interpolate_menu_func)
+    bpy.types.DOPESHEET_MT_gpencil_frame.remove(interpolate_menu_func)
     bpy.types.DOPESHEET_MT_key.remove(interpolate_menu_func)
 
 
